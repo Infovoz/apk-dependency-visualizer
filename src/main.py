@@ -10,6 +10,7 @@ try:
         parse_test_repository,
     )
     from src.load_order import get_load_order
+    from src.visualizer import generate_plantuml, render_ascii_tree
 except ModuleNotFoundError:
     from apk_parser import fetch_apkindex
     from graph_builder import (
@@ -17,6 +18,7 @@ except ModuleNotFoundError:
         parse_test_repository,
     )
     from load_order import get_load_order
+    from visualizer import generate_plantuml, render_ascii_tree
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -98,20 +100,26 @@ def main() -> None:
             target, packages, args.max_depth
         )
 
-        print(f"\nПостроен граф зависимостей для '{target}':")
-        for node, deps in graph.items():
-            deps_str = ", ".join(deps) if deps else "(нет зависимостей)"
-            print(f"  {node} -> {deps_str}")
+        load_order = get_load_order(target, graph)
+        print(f"\nПорядок загрузки зависимостей для '{target}':")
+        for idx, pkg in enumerate(load_order, start=1):
+            print(f"  {idx}. {pkg}")
 
         if cycles:
             print("\nОбнаружены циклические зависимости:")
             for src, dst in sorted(cycles):
                 print(f"  {src} -> {dst} (цикл)")
 
-        load_order = get_load_order(target, graph)
-        print(f"\nПорядок загрузки (установки) зависимостей для '{target}':")
-        for idx, pkg in enumerate(load_order, start=1):
-            print(f"  {idx}. {pkg}")
+        if args.ascii_tree:
+            print(f"\nASCII-дерево зависимостей:")
+            tree_lines = render_ascii_tree(target, graph)
+            print("\n".join(tree_lines))
+
+        print(f"\nОписание графа зависимостей (PlantUML):")
+        print("----------------------------------------")
+        plantuml_code = generate_plantuml(target, graph)
+        print(plantuml_code)
+        print("----------------------------------------")
 
     except Exception as error:
         print(f"Ошибка выполнения: {error}", file=sys.stderr)
