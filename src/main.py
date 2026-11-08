@@ -2,7 +2,19 @@
 
 import argparse
 import sys
-from src.apk_parser import fetch_apkindex
+
+try:
+    from src.apk_parser import fetch_apkindex
+    from src.graph_builder import (
+        build_dependency_graph,
+        parse_test_repository,
+    )
+except ModuleNotFoundError:
+    from apk_parser import fetch_apkindex
+    from graph_builder import (
+        build_dependency_graph,
+        parse_test_repository,
+    )
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -68,18 +80,32 @@ def main() -> None:
         args = parse_arguments()
         validate_arguments(args)
 
-        print(f"Загрузка репозитория: {args.repo}")
-        packages = fetch_apkindex(args.repo)
+        if args.test_mode:
+            print(f"Режим тестирования. Чтение графа из: {args.repo}")
+            packages = parse_test_repository(args.repo)
+        else:
+            print(f"Загрузка репозитория Alpine: {args.repo}")
+            packages = fetch_apkindex(args.repo)
 
         target = args.package.strip()
         if target not in packages:
             print(f"Пакет '{target}' не найден в репозитории.")
             sys.exit(1)
 
-        direct_deps = packages[target]
-        print(f"Прямые зависимости пакета '{target}':")
-        for dep in direct_deps:
-            print(f"  - {dep}")
+        graph, cycles = build_dependency_graph(
+            target, packages, args.max_depth
+        )
+
+        print(f"\nПостроен граф зависимостей для '{target}':")
+        for node, deps in graph.items():
+            deps_str = ", ".join(deps) if deps else "(нет зависимостей)"
+            print(f"  {node} -> {deps_str}")
+
+        if cycles:
+            print("\nОбнаружены циклические зависимости:")
+            for src, dst in sorted(cycles):
+                print(f"  {src} -> {dst} (цикл)")
+
     except Exception as error:
         print(f"Ошибка выполнения: {error}", file=sys.stderr)
         sys.exit(1)
