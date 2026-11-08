@@ -9,12 +9,14 @@ try:
         build_dependency_graph,
         parse_test_repository,
     )
+    from src.load_order import get_load_order
 except ModuleNotFoundError:
     from apk_parser import fetch_apkindex
     from graph_builder import (
         build_dependency_graph,
         parse_test_repository,
     )
+    from load_order import get_load_order
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -105,6 +107,11 @@ def main() -> None:
             print("\nОбнаружены циклические зависимости:")
             for src, dst in sorted(cycles):
                 print(f"  {src} -> {dst} (цикл)")
+
+        load_order = get_load_order(target, graph)
+        print(f"\nПорядок загрузки (установки) зависимостей для '{target}':")
+        for idx, pkg in enumerate(load_order, start=1):
+            print(f"  {idx}. {pkg}")
 
     except Exception as error:
         print(f"Ошибка выполнения: {error}", file=sys.stderr)
