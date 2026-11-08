@@ -1,91 +1,87 @@
-"""CLI entry point for dependency visualizer."""
+"""Точка входа CLI для визуализатора зависимостей."""
 
 import argparse
 import sys
+from src.apk_parser import fetch_apkindex
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse and validate command line arguments.
+    """Разобрать аргументы командной строки.
 
     Returns:
-        argparse.Namespace: Validated command line arguments.
+        argparse.Namespace: Разобранные аргументы.
     """
     parser = argparse.ArgumentParser(
-        description="Alpine apk dependency visualizer."
+        description="Визуализатор графа зависимостей Alpine apk."
     )
     parser.add_argument(
         "--package",
         required=True,
         type=str,
-        help="Name of the package to analyze.",
+        help="Имя анализируемого пакета.",
     )
     parser.add_argument(
         "--repo",
         required=True,
         type=str,
-        help="Repository URL or path to test repository file.",
+        help="URL репозитория или путь к тестовому файлу.",
     )
     parser.add_argument(
         "--test-mode",
         action="store_true",
-        help="Flag to enable test repository mode.",
+        help="Флаг режима работы с тестовым репозиторием.",
     )
     parser.add_argument(
         "--ascii-tree",
         action="store_true",
-        help="Flag to enable ASCII tree output mode.",
+        help="Флаг вывода дерева зависимостей в формате ASCII.",
     )
     parser.add_argument(
         "--max-depth",
         type=int,
         default=None,
-        help="Maximum depth of dependency analysis (integer > 0).",
+        help="Максимальная глубина анализа зависимостей.",
     )
     return parser.parse_args()
 
 
 def validate_arguments(args: argparse.Namespace) -> None:
-    """Validate argument values and constraints.
+    """Проверить корректность переданных параметров.
 
     Args:
-        args: Parsed arguments to validate.
+        args: Разобранные аргументы командной строки.
 
     Raises:
-        ValueError: If any argument value is invalid.
+        ValueError: Если параметры содержат недопустимые значения.
     """
     if not args.package.strip():
-        raise ValueError("Package name cannot be empty.")
+        raise ValueError("Имя пакета не может быть пустым.")
     if not args.repo.strip():
-        raise ValueError("Repository path/URL cannot be empty.")
+        raise ValueError("URL или путь к репозиторию не может быть пустым.")
     if args.max_depth is not None and args.max_depth <= 0:
-        raise ValueError("Max depth must be a positive integer.")
-
-
-def print_configuration(args: argparse.Namespace) -> None:
-    """Print configuration parameters in key-value format.
-
-    Args:
-        args: Validated arguments to display.
-    """
-    config = {
-        "package": args.package,
-        "repo": args.repo,
-        "test_mode": args.test_mode,
-        "ascii_tree": args.ascii_tree,
-        "max_depth": args.max_depth,
-    }
-    for key, value in config.items():
-        print(f"{key}: {value}")
+        raise ValueError("Глубина должна быть положительным числом.")
 
 
 def main() -> None:
-    """Execute application workflow for stage 1."""
+    """Основной сценарий выполнения приложения."""
     try:
         args = parse_arguments()
         validate_arguments(args)
-        print_configuration(args)
-    except ValueError as error:
-        print(f"Configuration error: {error}", file=sys.stderr)
+
+        print(f"Загрузка репозитория: {args.repo}")
+        packages = fetch_apkindex(args.repo)
+
+        target = args.package.strip()
+        if target not in packages:
+            print(f"Пакет '{target}' не найден в репозитории.")
+            sys.exit(1)
+
+        direct_deps = packages[target]
+        print(f"Прямые зависимости пакета '{target}':")
+        for dep in direct_deps:
+            print(f"  - {dep}")
+    except Exception as error:
+        print(f"Ошибка выполнения: {error}", file=sys.stderr)
         sys.exit(1)
 
 
