@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-
+from src.visualizer import generate_plantuml, render_ascii_tree
 try:
     from src.apk_parser import fetch_apkindex
     from src.graph_builder import (
@@ -79,50 +79,86 @@ def validate_arguments(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """Основной сценарий выполнения приложения."""
+    """Основной сценарий выполнения приложения с наглядным выводом."""
     try:
         args = parse_arguments()
         validate_arguments(args)
 
+        print("\n" + "=" * 60)
+        print(" [ЭТАП 1] ПАРСИНГ И ВАЛИДАЦИЯ АРГУМЕНТОВ CLI")
+        print("=" * 60)
+        print(f" -> Целевой пакет : {args.package}")
+        print(f" -> Источник данных: {args.repo}")
+        print(f" -> Режим работы   : {'Тестовый (синтетический граф)' if args.test_mode else 'Основной (репозиторий Alpine)'}")
+        print(f" -> Лимит глубины  : {args.max_depth if args.max_depth else 'Без ограничений'}")
+
+        print("\n" + "=" * 60)
+        print(" [ЭТАП 2] СБОР ДАННЫХ И ПАРСИНГ РЕПОЗИТОРИЯ")
+        print("=" * 60)
         if args.test_mode:
-            print(f"Режим тестирования. Чтение графа из: {args.repo}")
+            print(f"[*] Считывание тестового графа из файла...")
             packages = parse_test_repository(args.repo)
         else:
-            print(f"Загрузка репозитория Alpine: {args.repo}")
+            print(f"[*] Загрузка и распаковка APKINDEX.tar.gz...")
             packages = fetch_apkindex(args.repo)
+
+        print(f"[OK] База загружена. Всего пакетов в репозитории: {len(packages)}")
 
         target = args.package.strip()
         if target not in packages:
-            print(f"Пакет '{target}' не найден в репозитории.")
+            print(f"\n[ОШИБКА] Пакет '{target}' отсутствует в репозитории!")
             sys.exit(1)
 
+        direct_deps = packages.get(target, [])
+        deps_preview = ", ".join(direct_deps) if direct_deps else "нет"
+        print(f"[*] Прямые зависимости '{target}': {deps_preview}")
+
+        print("\n" + "=" * 60)
+        print(" [ЭТАП 3] ПОСТРОЕНИЕ ГРАФА (РЕКУРСИВНЫЙ BFS)")
+        print("=" * 60)
+        print(f"[*] Запуск послойного обхода от корня '{target}'...")
         graph, cycles = build_dependency_graph(
             target, packages, args.max_depth
         )
-
-        load_order = get_load_order(target, graph)
-        print(f"\nПорядок загрузки зависимостей для '{target}':")
-        for idx, pkg in enumerate(load_order, start=1):
-            print(f"  {idx}. {pkg}")
+        print(f"[OK] Граф построен. Охвачено пакетов: {len(graph)}")
+        for node, deps in graph.items():
+            deps_str = ", ".join(deps) if deps else "(нет)"
+            print(f"    - {node} -> {deps_str}")
 
         if cycles:
-            print("\nОбнаружены циклические зависимости:")
+            print(f"\n[!] ВНИМАНИЕ: Найдено циклов: {len(cycles)}")
             for src, dst in sorted(cycles):
-                print(f"  {src} -> {dst} (цикл)")
+                print(f"    [ЦИКЛ] {src} -> {dst}")
+        else:
+            print("[OK] Циклических зависимостей не обнаружено.")
 
+        print("\n" + "=" * 60)
+        print(" [ЭТАП 4] ВЫЧИСЛЕНИЕ ПОРЯДКА УСТАНОВКИ (ТОПОЛОГИЧЕСКАЯ СОРТИРОВКА)")
+        print("=" * 60)
+        load_order = get_load_order(target, graph)
+        print(f"[*] Очередность установки пакетов (от базовых к зависимым):")
+        for idx, pkg in enumerate(load_order, start=1):
+            arrow = " (целевой)" if pkg == target else ""
+            print(f"    {idx}. {pkg}{arrow}")
+
+        print("\n" + "=" * 60)
+        print(" [ЭТАП 5] ГЕНЕРАЦИЯ ВИЗУАЛИЗАЦИИ")
+        print("=" * 60)
         if args.ascii_tree:
-            print(f"\nASCII-дерево зависимостей:")
+            print("[*] Дерево зависимостей (ASCII):")
+            print("----------------------------------------")
             tree_lines = render_ascii_tree(target, graph)
             print("\n".join(tree_lines))
+            print("----------------------------------------\n")
 
-        print(f"\nОписание графа зависимостей (PlantUML):")
+        print("[*] Описание графа зависимостей (PlantUML):")
         print("----------------------------------------")
         plantuml_code = generate_plantuml(target, graph)
         print(plantuml_code)
-        print("----------------------------------------")
-
+        print("----------------------------------------\n")
+        print("[ЗАВЕРШЕНО] Анализ успешно выполнен.\n")
     except Exception as error:
-        print(f"Ошибка выполнения: {error}", file=sys.stderr)
+        print(f"\n[ОШИБКА ВЫПОЛНЕНИЯ] {error}", file=sys.stderr)
         sys.exit(1)
 
 

@@ -1,26 +1,57 @@
 """Модуль генерации диаграмм PlantUML и вывода ASCII-дерева."""
 
+import string
+import zlib
 from typing import Dict, List, Set
+
+PLANTUML_ALPHABET = (
+    string.digits + string.ascii_uppercase + string.ascii_lowercase + "-_"
+)
+
+
+def _encode_6bit(byte_val: int) -> str:
+    return PLANTUML_ALPHABET[byte_val & 0x3F]
+
+
+def encode_plantuml(plantuml_text: str) -> str:
+    """Закодировать текст PlantUML для формирования публичного URL-адреса.
+
+    Используется алгоритм zlib/deflate со специальным 64-символьным алфавитом PlantUML.
+    """
+    utf8_bytes = plantuml_text.encode("utf-8")
+    compressor = zlib.compressobj(
+        level=9, method=zlib.DEFLATED, wbits=-15, memLevel=8, strategy=zlib.Z_DEFAULT_STRATEGY
+    )
+    compressed = compressor.compress(utf8_bytes) + compressor.flush()
+
+    res = []
+    i = 0
+    while i < len(compressed):
+        b1 = compressed[i]
+        b2 = compressed[i + 1] if i + 1 < len(compressed) else 0
+        b3 = compressed[i + 2] if i + 2 < len(compressed) else 0
+
+        res.append(_encode_6bit(b1 >> 2))
+        res.append(_encode_6bit(((b1 & 0x3) << 4) | (b2 >> 4)))
+        res.append(_encode_6bit(((b2 & 0xF) << 2) | (b3 >> 6)))
+        res.append(_encode_6bit(b3 & 0x3F))
+        i += 3
+    return "".join(res)
 
 
 def generate_plantuml(
     root: str,
     graph: Dict[str, List[str]],
 ) -> str:
-    """Сформировать текстовое описание графа на языке PlantUML.
-
-    Args:
-        root: Имя корневого пакета.
-        graph: Словарь ребер графа зависимостей.
-
-    Returns:
-        Многострочная строка с кодом PlantUML.
-    """
+    """Сформировать текстовое описание графа на языке PlantUML."""
     lines: List[str] = [
         "@startuml",
-        "skinparam monochrome true",
+        "!theme plain",
+        "skinparam dpi 150",
+        "skinparam defaultFontName sans-serif",
         "skinparam packageStyle rectangle",
-        f'node "{root}" as root',
+        "skinparam roundCorner 8",
+        f'node "{root}" as root #LightSkyBlue',
     ]
 
     has_edges = False
@@ -32,7 +63,7 @@ def generate_plantuml(
             has_edges = True
 
     if not has_edges and root in graph:
-        lines.append(f'note right of root : Нет зависимостей')
+        lines.append("note right of root : Пакет не имеет зависимостей")
 
     lines.append("@enduml")
     return "\n".join(lines)
@@ -44,25 +75,24 @@ def render_ascii_tree(
     prefix: str = "",
     is_last: bool = True,
     visited_in_path: Set[str] = None,
+    depth: int = 0,
 ) -> List[str]:
-    """Сформировать представление дерева зависимостей в ASCII.
-
-    Args:
-        node: Текущий узел дерева.
-        graph: Словарь зависимостей.
-        prefix: Префикс текущей строки псевдографики.
-        is_last: Флаг последнего потомка на текущем уровне.
-        visited_in_path: Множество узлов текущей ветки для отлова циклов.
-
-    Returns:
-        Список строк ASCII-дерева.
-    """
+    """Сформировать структурированное представление дерева зависимостей в ASCII."""
     if visited_in_path is None:
         visited_in_path = set()
 
     connector = "└── " if is_last else "├── "
-    marker = " (цикл)" if node in visited_in_path else ""
-    lines = [f"{prefix}{connector}{node}{marker}"]
+
+    if depth == 0:
+        tag = " [ROOT]"
+    elif node in visited_in_path:
+        tag = " [ЦИКЛ!]"
+    elif not graph.get(node):
+        tag = " [LEAF]"
+    else:
+        tag = ""
+
+    lines = [f"{prefix}{connector}{node}{tag}"]
 
     if node in visited_in_path:
         return lines
@@ -81,6 +111,7 @@ def render_ascii_tree(
             new_prefix,
             child_is_last,
             new_visited,
+            depth + 1,
         )
         lines.extend(child_lines)
 
