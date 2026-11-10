@@ -19,8 +19,8 @@ class TestVisualizer(unittest.TestCase):
         """Проверка генерации псевдографики."""
         graph = {"A": ["B"], "B": []}
         lines = render_ascii_tree("A", graph)
-        self.assertTrue(any("A" in line for line in lines))
-        self.assertTrue(any("└── B" in line for line in lines))
+        self.assertTrue(any("A [ROOT]" in line for line in lines))
+        self.assertTrue(any("└── B [LEAF]" in line for line in lines))
 
 
 if __name__ == "__main__":
