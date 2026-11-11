@@ -1,29 +1,43 @@
-"""Модульные тесты для парсера APKINDEX (Этап 2)."""
+"""Модульные тесты парсинга APKINDEX (Этап 2)."""
 
 import unittest
 from src.apk_parser import clean_dependency_name, parse_apkindex_content
 
 
 class TestApkParser(unittest.TestCase):
-    """Тестирование разбора данных из APKINDEX."""
+    """Тестирование разбора пакетов и их зависимостей."""
 
     def test_clean_dependency_name(self) -> None:
         """Проверка очистки имен зависимостей от версий и префиксов."""
-        self.assertEqual(clean_dependency_name("ca-certificates"), "ca-certificates")
-        self.assertEqual(clean_dependency_name("zlib>=1.2.11"), "zlib")
-        self.assertEqual(clean_dependency_name("so:libc.musl-x86_64.so.1"), "")
+        self.assertEqual(clean_dependency_name("so:libc.musl.so"), "")
         self.assertEqual(clean_dependency_name("cmd:sh"), "")
+        self.assertEqual(clean_dependency_name("pc:libssl"), "")
+        self.assertEqual(
+            clean_dependency_name("libssl3>=3.0.0"),
+            "libssl3",
+        )
+        self.assertEqual(clean_dependency_name("zlib=1.2.11"), "zlib")
+        self.assertEqual(clean_dependency_name("curl"), "curl")
 
     def test_parse_apkindex_content(self) -> None:
         """Проверка разбора структуры пакетов и их зависимостей."""
-        content = (
-            "C:Q1\nP:curl\nV:8.0.1\nD:ca-certificates libcurl>=8.0.1 so:libc.so\n\n"
-            "C:Q2\nP:libcurl\nV:8.0.1\nD:zlib openssl\n"
+        raw_index = (
+            "P:curl\n"
+            "V:8.0.0\n"
+            "D:libcurl so:libc.musl.so ca-certificates\n\n"
+            "P:libcurl\n"
+            "V:8.0.0\n"
+            "D:libssl3>=3.0 zlib\n\n"
+            "P:libssl3\n"
+            "V:3.0.0\n"
+            "D:\n"
         )
-        result = parse_apkindex_content(content)
-        self.assertIn("curl", result)
-        self.assertEqual(result["curl"], ["ca-certificates", "libcurl"])
-        self.assertEqual(result["libcurl"], ["zlib", "openssl"])
+        repo = parse_apkindex_content(raw_index)
+        self.assertIn("curl", repo)
+        expected_curl = ["libcurl", "ca-certificates"]
+        self.assertEqual(repo["curl"], expected_curl)
+        self.assertEqual(repo["libcurl"], ["libssl3", "zlib"])
+        self.assertEqual(repo["libssl3"], [])
 
 
 if __name__ == "__main__":
