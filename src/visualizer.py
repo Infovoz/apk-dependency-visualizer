@@ -14,7 +14,7 @@ def _encode_6bit(byte_val: int) -> str:
 
 
 def encode_plantuml(plantuml_text: str) -> str:
-    """Закодировать текст PlantUML для формирования публичного URL-адреса."""
+    """Закодировать текст PlantUML в URL-хэш."""
     utf8_bytes = plantuml_text.encode("utf-8")
     compressor = zlib.compressobj(
         level=9,
@@ -70,6 +70,22 @@ def generate_plantuml(
     return "\n".join(lines)
 
 
+def _get_node_tag(
+    node: str,
+    graph: Dict[str, List[str]],
+    visited: Set[str],
+    depth: int,
+) -> str:
+    """Определить служебную метку для узла ASCII дерева."""
+    if depth == 0:
+        return " [ROOT]"
+    if node in visited:
+        return " [ЦИКЛ!]"
+    if not graph.get(node):
+        return " [LEAF]"
+    return ""
+
+
 def render_ascii_tree(
     node: str,
     graph: Dict[str, List[str]],
@@ -78,21 +94,12 @@ def render_ascii_tree(
     visited_in_path: Set[str] = None,
     depth: int = 0,
 ) -> List[str]:
-    """Сформировать структурированное представление дерева зависимостей в ASCII."""
+    """Сформировать представление дерева зависимостей в ASCII."""
     if visited_in_path is None:
         visited_in_path = set()
 
     connector = "└── " if is_last else "├── "
-
-    if depth == 0:
-        tag = " [ROOT]"
-    elif node in visited_in_path:
-        tag = " [ЦИКЛ!]"
-    elif not graph.get(node):
-        tag = " [LEAF]"
-    else:
-        tag = ""
-
+    tag = _get_node_tag(node, graph, visited_in_path, depth)
     lines = [f"{prefix}{connector}{node}{tag}"]
 
     if node in visited_in_path:
@@ -100,20 +107,19 @@ def render_ascii_tree(
 
     new_visited = visited_in_path.copy()
     new_visited.add(node)
-
     deps = graph.get(node, [])
     new_prefix = prefix + ("    " if is_last else "│   ")
 
     for i, dep in enumerate(deps):
         child_is_last = i == (len(deps) - 1)
-        child_lines = render_ascii_tree(
-            dep,
-            graph,
-            new_prefix,
-            child_is_last,
-            new_visited,
-            depth + 1,
+        lines.extend(
+            render_ascii_tree(
+                dep,
+                graph,
+                new_prefix,
+                child_is_last,
+                new_visited,
+                depth + 1,
+            )
         )
-        lines.extend(child_lines)
-
     return lines
