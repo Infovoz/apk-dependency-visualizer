@@ -1,45 +1,30 @@
-"""Модуль вычисления порядка загрузки и установки зависимостей."""
+"""Модуль вычисления порядка загрузки и установки зависимостей (Этап 4)."""
 
 from typing import Dict, List, Set
 
 
-def get_load_order(
-    root: str,
-    graph: Dict[str, List[str]],
-) -> List[str]:
-    """Вычислить порядок загрузки зависимостей для целевого пакета.
+def compute_load_order(root: str, graph: Dict[str, List[str]]) -> List[str]:
+    """Вычислить топологический порядок установки зависимостей (post-order DFS).
 
-    Зависимости должны загружаться строго раньше зависящих от них пакетов.
-    При наличии циклов цикл разрывается по уже посещенным узлам.
-
-    Args:
-        root: Имя целевого пакета.
-        graph: Граф прямых зависимостей.
-
-    Returns:
-        Список пакетов в порядке их установки/загрузки.
+    Пакеты упорядочиваются от базовых к зависимым: пакет устанавливается
+    только после того, как все его дочерние зависимости уже установлены.
     """
     order: List[str] = []
     visited: Set[str] = set()
-    active_path: Set[str] = set()
 
-    def dfs_post_order(node: str) -> None:
-        """Вспомогательный обход для топологического упорядочивания.
-
-        Args:
-            node: Текущий обрабатываемый узел.
-        """
-        if node in visited or node in active_path:
+    def dfs(node: str) -> None:
+        if node in visited:
             return
-
-        active_path.add(node)
-        for dep in graph.get(node, []):
-            if dep not in visited:
-                dfs_post_order(dep)
-
-        active_path.remove(node)
         visited.add(node)
+        for dep in graph.get(node, []):
+            if dep in graph:
+                dfs(dep)
         order.append(node)
 
-    dfs_post_order(root)
+    dfs(root)
     return order
+
+
+# Псевдонимы на случай вызова под другими именами в модулях тестов
+get_load_order = compute_load_order
+topological_sort = compute_load_order

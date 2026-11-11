@@ -14,13 +14,14 @@ def _encode_6bit(byte_val: int) -> str:
 
 
 def encode_plantuml(plantuml_text: str) -> str:
-    """Закодировать текст PlantUML для формирования публичного URL-адреса.
-
-    Используется алгоритм zlib/deflate со специальным 64-символьным алфавитом PlantUML.
-    """
+    """Закодировать текст PlantUML для формирования публичного URL-адреса."""
     utf8_bytes = plantuml_text.encode("utf-8")
     compressor = zlib.compressobj(
-        level=9, method=zlib.DEFLATED, wbits=-15, memLevel=8, strategy=zlib.Z_DEFAULT_STRATEGY
+        level=9,
+        method=zlib.DEFLATED,
+        wbits=-15,
+        memLevel=8,
+        strategy=zlib.Z_DEFAULT_STRATEGY,
     )
     compressed = compressor.compress(utf8_bytes) + compressor.flush()
 
