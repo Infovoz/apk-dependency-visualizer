@@ -8,7 +8,7 @@ from typing import Dict, List
 
 
 def clean_dependency_name(raw_dep: str) -> str:
-    """Очистить имя зависимости от версий и префиксов (so:, cmd:, pc:)."""
+    """Очистить имя зависимости от версий и служебных префиксов."""
     clean = raw_dep.strip()
     if clean.startswith(("so:", "cmd:", "pc:")):
         return ""
@@ -77,3 +77,7 @@ def parse_test_repo(filepath: str) -> Dict[str, List[str]]:
             else:
                 repo[line] = []
     return repo
+
+
+fetch_repository_index = fetch_and_parse_apkindex
+parse_apkindex = fetch_and_parse_apkindex
